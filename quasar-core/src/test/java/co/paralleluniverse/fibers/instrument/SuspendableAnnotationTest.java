@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import static org.junit.Assert.*;
 import static org.junit.Assume.*;
+import org.junit.Before;
 import org.junit.Test;
 
 /**
@@ -35,29 +36,113 @@ import org.junit.Test;
 public class SuspendableAnnotationTest {
     private final List<String> results = new ArrayList<>();
 
-    @Suspendable
-    private void suspendableMethod() {
-        try {
-            results.add("A");
-            Fiber.park();
-            results.add("B");
-            Fiber.park();
-            results.add("C");
-        } catch (SuspendExecution e) {
-            throw new AssertionError(e);
+    abstract class BaseTestClass {
+        @Suspendable
+        abstract void suspendableBaseMethod();
+    }
+
+    interface TestInterface {
+        @Suspendable
+        void suspendableInterfaceMethod();
+    }
+
+    class TestClass extends BaseTestClass {
+
+        void suspendableBaseMethod() {
+            try {
+                results.add("A");
+                Fiber.park();
+                results.add("B");
+                Fiber.park();
+                results.add("C");
+            } catch (SuspendExecution e) {
+                throw new AssertionError(e);
+            }
+        }
+
+        private void suspendableInterfaceMethod() {
+            try {
+                results.add("A");
+                Fiber.park();
+                results.add("B");
+                Fiber.park();
+                results.add("C");
+            } catch (SuspendExecution e) {
+                throw new AssertionError(e);
+            }
+        }
+
+        @Suspendable
+        private void suspendableMethod() {
+            try {
+                results.add("A");
+                Fiber.park();
+                results.add("B");
+                Fiber.park();
+                results.add("C");
+            } catch (SuspendExecution e) {
+                throw new AssertionError(e);
+            }
+        }
+
+        private void nonsuspendableMethod() {
+            try {
+                results.add("A");
+                Fiber.park();
+                results.add("B");
+                Fiber.park();
+                results.add("C");
+            } catch (SuspendExecution e) {
+                throw Exceptions.sneakyThrow(e);
+            }
         }
     }
 
-    private void nonsuspendableMethod() {
+    @Before
+    public void before() {
+        results.clear();
+    }
+
+    @Test
+    public void testBaseAnnotated() {
         try {
-            results.add("A");
-            Fiber.park();
-            results.add("B");
-            Fiber.park();
-            results.add("C");
-        } catch (SuspendExecution e) {
-            throw Exceptions.sneakyThrow(e);
+            Fiber co = new Fiber((String) null, null, (SuspendableCallable) null) {
+                @Override
+                protected Object run() throws SuspendExecution, InterruptedException {
+                    new TestClass().suspendableBaseMethod();
+                    return null;
+                }
+            };
+            exec(co);
+            exec(co);
+            exec(co);
+        } finally {
+            System.out.println(results);
         }
+
+        assertEquals(3, results.size());
+        assertEquals(Arrays.asList("A", "B", "C"), results);
+    }
+
+    @Test
+    public void testInterfaceAnnotated() {
+        try {
+            Fiber co = new Fiber((String) null, null, (SuspendableCallable) null) {
+                @Override
+                protected Object run() throws SuspendExecution, InterruptedException {
+                    new TestClass().suspendableInterfaceMethod();
+                    return null;
+                }
+            };
+            exec(co);
+            exec(co);
+            exec(co);
+        } finally {
+            System.out.println(results);
+        }
+
+        assertEquals(3, results.size());
+        assertEquals(Arrays.asList("A", "B", "C"), results);
     }
 
     @Test
@@ -66,7 +151,7 @@ public class SuspendableAnnotationTest {
             Fiber co = new Fiber((String) null, null, (SuspendableCallable) null) {
                 @Override
                 protected Object run() throws SuspendExecution, InterruptedException {
-                    suspendableMethod();
+                    new TestClass().suspendableMethod();
                     return null;
                 }
             };
@@ -89,7 +174,7 @@ public class SuspendableAnnotationTest {
             Fiber co = new Fiber((String) null, null, (SuspendableCallable) null) {
                 @Override
                 protected Object run() throws SuspendExecution, InterruptedException {
-                    nonsuspendableMethod();
+                    new TestClass().nonsuspendableMethod();
                     return null;
                 }
             };
